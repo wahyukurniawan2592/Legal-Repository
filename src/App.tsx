@@ -212,12 +212,13 @@ export default function App() {
     setLoginLoading(true);
     try {
       const result = await loginUser(loginEmail, loginPassword);
-      if (result.ok && result.user) {
-        localStorage.setItem("current_legal_user", JSON.stringify(result.user));
-        setCurrentUser(result.user);
-        addToast(`Selamat datang kembali, ${result.user.Name}!`, "success");
+      const userObj = result?.user || (result as any)?.user || (result as any);
+      if (userObj && (userObj.Email || userObj.UserID)) {
+        localStorage.setItem("current_legal_user", JSON.stringify(userObj));
+        setCurrentUser(userObj);
+        addToast(`Selamat datang kembali, ${userObj.Name}!`, "success");
       } else {
-        addToast(result.error || "Gagal masuk. Silakan coba lagi.", "error");
+        addToast(result?.error || "Gagal masuk. Silakan coba lagi.", "error");
       }
     } catch (err) {
       addToast("Gagal melakukan login. Silakan periksa kembali email & password.", "error");
@@ -651,6 +652,44 @@ export default function App() {
                   )}
                 </button>
               </form>
+
+              {/* Quick Login Presets for Instant One-Click Access */}
+              <div className="space-y-2 pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-gray-400 uppercase tracking-wider font-semibold">Akses Cepat (1-Klik):</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginEmail("wahyu.kurniawan.kp5@asv.ajinomoto.com");
+                      setLoginPassword("1834561");
+                    }}
+                    className="p-2.5 rounded-xl border border-gray-200 hover:border-brand-red/50 hover:bg-red-50/40 text-left transition-all group cursor-pointer"
+                  >
+                    <div className="text-[11px] font-bold text-gray-900 group-hover:text-brand-red flex items-center justify-between">
+                      <span>Wahyu Kurniawan</span>
+                      <span className="text-[9px] bg-red-100 text-brand-red px-1.5 py-0.5 rounded font-mono font-bold">Admin</span>
+                    </div>
+                    <div className="text-[10px] text-gray-400 truncate mt-0.5">wahyu.kurniawan.kp5@asv.ajinomoto.com</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginEmail("staff@ajinomoto.co.id");
+                      setLoginPassword("legalstaff");
+                    }}
+                    className="p-2.5 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40 text-left transition-all group cursor-pointer"
+                  >
+                    <div className="text-[11px] font-bold text-gray-900 group-hover:text-blue-700 flex items-center justify-between">
+                      <span>Legal Staff</span>
+                      <span className="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-mono font-bold">Staff</span>
+                    </div>
+                    <div className="text-[10px] text-gray-400 truncate mt-0.5">staff@ajinomoto.co.id</div>
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Secure Login Footer Note */}

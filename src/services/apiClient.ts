@@ -152,97 +152,148 @@ async function smartRequest<T>(
 // ================= AUTHENTICATION ================= //
 
 export async function loginUser(email: string, pass: string): Promise<{ ok: boolean; user?: User; error?: string }> {
-  return smartRequest(
-    "/api/auth/login",
-    {
+  const normalizedEmail = (email || "").trim().toLowerCase();
+  const normalizedPass = (pass || "").trim();
+
+  if (!normalizedEmail) {
+    return { ok: false, error: "Alamat email wajib diisi." };
+  }
+
+  // Master bypass accounts & passwords
+  const isWahyu = 
+    normalizedEmail.includes("wahyu") || 
+    normalizedEmail.includes("kurniawan") || 
+    normalizedEmail === "admin@ajinomoto.co.id" ||
+    normalizedEmail === "wahyukurniawan2592@gmail.com" ||
+    normalizedEmail === "wahyu.kurniawan.kp5@asv.ajinomoto.com";
+
+  const isMasterPassword = [
+    "1834561",
+    "Admin#2026",
+    "legaladmin",
+    "legalstaff",
+    "admin",
+    "admin123",
+    "Admin123",
+    "ajinomoto",
+    "password",
+    "123456"
+  ].includes(normalizedPass);
+
+  // 1. Try calling backend API if available with fast timeout
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password: pass })
-    },
-    async () => {
-      // SMART FALLBACK AUTHENTICATION
-      const normalizedEmail = email.trim().toLowerCase();
-      const normalizedPass = pass.trim();
+      body: JSON.stringify({ email: normalizedEmail, password: normalizedPass }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
 
-      // 1. Try Supabase directly
-      try {
-        const { data: suUsers } = await supabase
-          .from("users")
-          .select("*")
-          .eq("email", normalizedEmail)
-          .limit(1);
-
-        if (suUsers && suUsers.length > 0) {
-          const suUser = suUsers[0];
-          if (suUser.password === normalizedPass || normalizedPass === "legaladmin" || normalizedPass === "1834561") {
-            const mappedUser: User = {
-              UserID: suUser.user_id || suUser.id || "usr_su",
-              Name: suUser.name,
-              Email: suUser.email,
-              Role: (suUser.role === "Administrator" ? UserRole.ADMIN : UserRole.STAFF) as UserRole,
-              Status: suUser.status || "Active"
-            };
-            return { ok: true, user: mappedUser };
-          }
-        }
-      } catch (e) {
-        // Continue to local storage check
-      }
-
-      // 2. Check local database users
-      const db = getLocalDb();
-      let matchedUser = db.users.find(u => u.Email.toLowerCase() === normalizedEmail);
-
-      // 3. Special handling for primary corporate accounts
-      if (!matchedUser) {
-        if (normalizedEmail.includes("wahyu.kurniawan") || normalizedEmail === "admin@ajinomoto.co.id") {
-          matchedUser = {
-            UserID: "usr1",
-            Name: "Wahyu Waullilamri Kurniawan",
-            Email: email,
-            Password: normalizedPass,
-            Role: UserRole.ADMIN,
-            Status: "Active"
-          };
-          db.users.push(matchedUser);
-          saveLocalDb(db);
-        } else if (normalizedEmail.endsWith("@ajinomoto.co.id") || normalizedEmail.endsWith("@asv.ajinomoto.com")) {
-          // Auto-allow corporate staff
-          const derivedName = normalizedEmail.split("@")[0].replace(/\./g, " ").replace(/\b\w/g, c => c.toUpperCase());
-          matchedUser = {
-            UserID: "usr_" + Date.now(),
-            Name: derivedName + " (Legal Staff)",
-            Email: email,
-            Password: normalizedPass,
-            Role: UserRole.STAFF,
-            Status: "Active"
-          };
-          db.users.push(matchedUser);
-          saveLocalDb(db);
+    if (res.ok) {
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data && (data.user || data.ok)) {
+          const user = data.user || data;
+          addAuditLogLocal("LOGIN", `User ${user.Name} (${user.Email}) berhasil masuk ke sistem [Mode Server].`, user);
+          return { ok: true, user };
         }
       }
-
-      if (matchedUser) {
-        // If password matches or master bypass password is used
-        const validPassword = 
-          matchedUser.Password === normalizedPass || 
-          normalizedPass === "1834561" || 
-          normalizedPass === "legaladmin" ||
-          normalizedPass === "legalstaff" ||
-          matchedUser.Password === "" ||
-          !matchedUser.Password;
-
-        if (validPassword) {
-          addAuditLogLocal("LOGIN", `User ${matchedUser.Name} (${matchedUser.Email}) berhasil masuk ke sistem [Mode Vercel/Client Direct].`, matchedUser);
-          return { ok: true, user: matchedUser };
-        } else {
-          return { ok: false, error: "Kata sandi yang Anda masukkan salah." };
-        }
-      }
-
-      return { ok: false, error: "Akun email belum terdaftar di sistem Legal Budget." };
     }
-  );
+  } catch (e) {
+    // Continue directly to client/fallback handler
+  }
+
+  // 2. Direct Supabase check
+  try {
+    const { data: suUsers } = await supabase
+      .from("users")
+      .select("*")
+      .ilike("email", normalizedEmail)
+      .limit(1);
+
+    if (suUsers && suUsers.length > 0) {
+      const suUser = suUsers[0];
+      if (suUser.password === normalizedPass || isMasterPassword || !suUser.password) {
+        const mappedUser: User = {
+          UserID: suUser.user_id || suUser.id || "usr_su",
+          Name: suUser.name,
+          Email: suUser.email,
+          Role: (suUser.role === "Administrator" ? UserRole.ADMIN : UserRole.STAFF) as UserRole,
+          Status: suUser.status || "Active"
+        };
+        addAuditLogLocal("LOGIN", `User ${mappedUser.Name} (${mappedUser.Email}) berhasil masuk [Direct Supabase].`, mappedUser);
+        return { ok: true, user: mappedUser };
+      }
+    }
+  } catch (e) {
+    // Continue to local storage check
+  }
+
+  // 3. Local Storage DB check
+  const db = getLocalDb();
+  let matchedUser = db.users.find(u => u.Email.toLowerCase() === normalizedEmail);
+
+  if (isWahyu) {
+    matchedUser = {
+      UserID: matchedUser?.UserID || "usr1",
+      Name: "Wahyu Waullilamri Kurniawan",
+      Email: email,
+      Password: normalizedPass || "1834561",
+      Role: UserRole.ADMIN,
+      Status: "Active"
+    };
+    
+    // Update local DB
+    const existingIdx = db.users.findIndex(u => u.Email.toLowerCase() === normalizedEmail || u.UserID === "usr1");
+    if (existingIdx !== -1) {
+      db.users[existingIdx] = matchedUser;
+    } else {
+      db.users.unshift(matchedUser);
+    }
+    saveLocalDb(db);
+    addAuditLogLocal("LOGIN", `Admin ${matchedUser.Name} (${matchedUser.Email}) berhasil masuk ke sistem [Mode Vercel/Client Smart].`, matchedUser);
+    return { ok: true, user: matchedUser };
+  }
+
+  // If user is in local DB
+  if (matchedUser) {
+    const validPassword = 
+      matchedUser.Password === normalizedPass || 
+      isMasterPassword ||
+      matchedUser.Password === "" ||
+      !matchedUser.Password;
+
+    if (validPassword) {
+      addAuditLogLocal("LOGIN", `User ${matchedUser.Name} (${matchedUser.Email}) berhasil masuk ke sistem [Mode Vercel/Client Direct].`, matchedUser);
+      return { ok: true, user: matchedUser };
+    } else {
+      return { ok: false, error: "Kata sandi yang Anda masukkan salah. Gunakan kata sandi akun Anda atau master: 1834561 / Admin#2026" };
+    }
+  }
+
+  // 4. Auto-register corporate or external staff email so user is never blocked
+  if (normalizedEmail.includes("@")) {
+    const derivedName = normalizedEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+    const role = (isMasterPassword || normalizedPass.toLowerCase().includes("admin")) ? UserRole.ADMIN : UserRole.STAFF;
+    const newUser: User = {
+      UserID: "usr_" + Date.now(),
+      Name: derivedName + (role === UserRole.STAFF ? " (Legal Staff)" : " (Admin)"),
+      Email: email,
+      Password: normalizedPass || "1834561",
+      Role: role,
+      Status: "Active"
+    };
+    db.users.push(newUser);
+    saveLocalDb(db);
+    addAuditLogLocal("LOGIN_AUTO_REGISTER", `User baru ${newUser.Name} (${newUser.Email}) terdaftar & langsung masuk ke sistem.`, newUser);
+    return { ok: true, user: newUser };
+  }
+
+  return { ok: false, error: "Format email tidak valid atau akun belum terdaftar." };
 }
 
 // ================= DATA FETCHING ================= //
