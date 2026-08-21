@@ -3673,9 +3673,9 @@ export default function DashboardView({
                 <div id="pdf-summary-report-content" className="space-y-6 p-2 bg-white rounded-2xl">
                   {/* Branding Report Header for PDF capture */}
                   <div className="pb-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3.5">
-                      <AjinomotoLogo variant="horizontal" height={34} />
-                      <div className="hidden sm:block h-7 w-px bg-gray-200"></div>
+                    <div className="flex items-center gap-4">
+                      <AjinomotoLogo variant="horizontal" height={48} />
+                      <div className="hidden sm:block h-9 w-px bg-gray-200"></div>
                       <div>
                         <span className="text-[10px] font-mono font-bold text-brand-red uppercase tracking-widest block">{getCompanyDisplayUpper(activeCompany)} - LEGAL DEPARTMENT</span>
                         <h3 className="font-display font-bold text-gray-900 text-sm sm:text-base">EXECUTIVE SUMMARY &amp; TREND PERFORMANCE ANGGARAN</h3>

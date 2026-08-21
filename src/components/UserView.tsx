@@ -45,6 +45,7 @@ export default function UserView({
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  const [formUserId, setFormUserId] = useState("");
   const [formName, setFormName] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formPassword, setFormPassword] = useState("");
@@ -74,12 +75,14 @@ export default function UserView({
     return (
       (u.Name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (u.Email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.UserID || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (u.Role || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
 
   const handleOpenAdd = () => {
     setEditingId(null);
+    setFormUserId(`usr_${Date.now().toString().slice(-4)}`);
     setFormName("");
     setFormEmail("");
     setFormPassword("");
@@ -91,6 +94,7 @@ export default function UserView({
 
   const handleOpenEdit = (u: User) => {
     setEditingId(u.UserID);
+    setFormUserId(u.UserID);
     setFormName(u.Name);
     setFormEmail(u.Email);
     setFormPassword(u.Password || "1834561");
@@ -116,6 +120,7 @@ export default function UserView({
 
     setSubmitting(true);
     const userData = {
+      ...(formUserId ? { UserID: formUserId.trim() } : {}),
       Name: formName.trim(),
       Email: formEmail.trim().toLowerCase(),
       Password: formPassword.trim(),
@@ -131,7 +136,7 @@ export default function UserView({
           addToast(`Data pengguna ${formName} berhasil diperbarui & disimpan.`, "success");
         }
       } else {
-        success = await onAddUser(userData);
+        success = await onAddUser(userData as any);
         if (success) {
           addToast(`Pengguna baru ${formName} berhasil didaftarkan.`, "success");
         }
@@ -316,17 +321,29 @@ export default function UserView({
             </div>
 
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              {/* Name */}
-              <div>
-                <label className="block text-[10px] font-mono font-semibold text-gray-500 uppercase tracking-widest mb-1">Nama Lengkap *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Wahyu Waullilamri Kurniawan"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-brand-red text-gray-800 font-medium"
-                />
+              {/* User ID and Name Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-1">
+                  <label className="block text-[10px] font-mono font-semibold text-gray-500 uppercase tracking-widest mb-1">ID Pengguna</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. usr1 / staff01"
+                    value={formUserId}
+                    onChange={(e) => setFormUserId(e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-brand-red text-gray-800 font-mono"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] font-mono font-semibold text-gray-500 uppercase tracking-widest mb-1">Nama Lengkap *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Wahyu Waullilamri Kurniawan"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    className="w-full text-xs px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:border-brand-red text-gray-800 font-medium"
+                  />
+                </div>
               </div>
 
               {/* Email */}

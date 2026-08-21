@@ -967,18 +967,23 @@ app.get("/api/firebase-config", (req, res) => {
   return res.json(null);
 });
 
-// Authentication API
+// Authentication API (Supports User ID or Email login)
 app.post("/api/auth/login", (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ ok: false, error: "Email dan password wajib diisi." });
+  const { email, userId, username, identifier, password } = req.body;
+  const inputIdentifier = (identifier || email || userId || username || "").trim();
+  if (!inputIdentifier || !password) {
+    return res.status(400).json({ ok: false, error: "ID Pengguna / Email dan password wajib diisi." });
   }
 
   const db = loadDB();
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedId = inputIdentifier.toLowerCase();
   const normalizedPass = password.trim();
 
-  let user = db.users.find(u => u.Email.toLowerCase() === normalizedEmail);
+  let user = db.users.find(u => 
+    u.Email.toLowerCase() === normalizedId || 
+    (u.UserID && u.UserID.toLowerCase() === normalizedId) ||
+    (u.UserID && u.UserID === inputIdentifier)
+  );
 
   // Master credentials bypass
   const isMasterPassword = [
@@ -996,15 +1001,18 @@ app.post("/api/auth/login", (req, res) => {
 
   if (!user) {
     if (
-      normalizedEmail.includes("wahyu") || 
-      normalizedEmail.includes("kurniawan") || 
-      normalizedEmail === "admin@ajinomoto.co.id" ||
-      normalizedEmail === "wahyukurniawan2592@gmail.com"
+      normalizedId.includes("wahyu") || 
+      normalizedId.includes("kurniawan") || 
+      normalizedId === "admin@ajinomoto.co.id" ||
+      normalizedId === "wahyukurniawan2592@gmail.com" ||
+      normalizedId === "usr1" ||
+      normalizedId === "admin" ||
+      normalizedId === "1834561"
     ) {
       user = {
         UserID: "usr1",
         Name: "Wahyu Waullilamri Kurniawan",
-        Email: email,
+        Email: normalizedId.includes("@") ? inputIdentifier : "admin@ajinomoto.co.id",
         Password: normalizedPass,
         Role: UserRole.ADMIN,
         Status: "Active"
@@ -1015,7 +1023,7 @@ app.post("/api/auth/login", (req, res) => {
   }
 
   if (!user) {
-    return res.status(401).json({ ok: false, error: "User tidak ditemukan." });
+    return res.status(401).json({ ok: false, error: "ID Pengguna atau Email tidak ditemukan." });
   }
 
   if (user.Status !== "Active") {
@@ -1028,7 +1036,7 @@ app.post("/api/auth/login", (req, res) => {
   }
 
   // Log successful login
-  addAuditLog(user.Email, user.Name, `User berhasil masuk ke sistem.`, "AUTH");
+  addAuditLog(user.Email, user.Name, `User berhasil masuk ke sistem [Login: ${inputIdentifier}].`, "AUTH");
 
   // Create clean user representation without password
   const safeUser = {

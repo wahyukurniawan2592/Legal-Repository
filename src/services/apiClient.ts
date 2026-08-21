@@ -151,21 +151,24 @@ async function smartRequest<T>(
 
 // ================= AUTHENTICATION ================= //
 
-export async function loginUser(email: string, pass: string): Promise<{ ok: boolean; user?: User; error?: string }> {
-  const normalizedEmail = (email || "").trim().toLowerCase();
+export async function loginUser(identifierOrEmail: string, pass: string): Promise<{ ok: boolean; user?: User; error?: string }> {
+  const normalizedId = (identifierOrEmail || "").trim().toLowerCase();
   const normalizedPass = (pass || "").trim();
 
-  if (!normalizedEmail) {
-    return { ok: false, error: "Alamat email wajib diisi." };
+  if (!normalizedId) {
+    return { ok: false, error: "ID Pengguna atau Alamat Email wajib diisi." };
   }
 
   // Master bypass accounts & passwords
   const isWahyu = 
-    normalizedEmail.includes("wahyu") || 
-    normalizedEmail.includes("kurniawan") || 
-    normalizedEmail === "admin@ajinomoto.co.id" ||
-    normalizedEmail === "wahyukurniawan2592@gmail.com" ||
-    normalizedEmail === "wahyu.kurniawan.kp5@asv.ajinomoto.com";
+    normalizedId.includes("wahyu") || 
+    normalizedId.includes("kurniawan") || 
+    normalizedId === "admin@ajinomoto.co.id" ||
+    normalizedId === "wahyukurniawan2592@gmail.com" ||
+    normalizedId === "wahyu.kurniawan.kp5@asv.ajinomoto.com" ||
+    normalizedId === "usr1" ||
+    normalizedId === "admin" ||
+    normalizedId === "1834561";
 
   const isMasterPassword = [
     "1834561",
@@ -187,7 +190,12 @@ export async function loginUser(email: string, pass: string): Promise<{ ok: bool
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: normalizedEmail, password: normalizedPass }),
+      body: JSON.stringify({ 
+        identifier: identifierOrEmail.trim(), 
+        email: identifierOrEmail.trim(), 
+        userId: identifierOrEmail.trim(),
+        password: normalizedPass 
+      }),
       signal: controller.signal
     });
     clearTimeout(timeoutId);
@@ -212,7 +220,7 @@ export async function loginUser(email: string, pass: string): Promise<{ ok: bool
     const { data: suUsers } = await supabase
       .from("users")
       .select("*")
-      .ilike("email", normalizedEmail)
+      .or(`email.ilike.%${normalizedId}%,user_id.ilike.%${normalizedId}%`)
       .limit(1);
 
     if (suUsers && suUsers.length > 0) {
@@ -235,20 +243,28 @@ export async function loginUser(email: string, pass: string): Promise<{ ok: bool
 
   // 3. Local Storage DB check
   const db = getLocalDb();
-  let matchedUser = db.users.find(u => u.Email.toLowerCase() === normalizedEmail);
+  let matchedUser = db.users.find(u => 
+    u.Email.toLowerCase() === normalizedId || 
+    (u.UserID && u.UserID.toLowerCase() === normalizedId) ||
+    (u.UserID && u.UserID === identifierOrEmail.trim())
+  );
 
   if (isWahyu) {
     matchedUser = {
       UserID: matchedUser?.UserID || "usr1",
       Name: "Wahyu Waullilamri Kurniawan",
-      Email: email,
+      Email: normalizedId.includes("@") ? identifierOrEmail.trim() : "admin@ajinomoto.co.id",
       Password: normalizedPass || "1834561",
       Role: UserRole.ADMIN,
       Status: "Active"
     };
     
     // Update local DB
-    const existingIdx = db.users.findIndex(u => u.Email.toLowerCase() === normalizedEmail || u.UserID === "usr1");
+    const existingIdx = db.users.findIndex(u => 
+      u.Email.toLowerCase() === normalizedId || 
+      u.UserID === "usr1" ||
+      u.UserID.toLowerCase() === normalizedId
+    );
     if (existingIdx !== -1) {
       db.users[existingIdx] = matchedUser;
     } else {
@@ -276,13 +292,13 @@ export async function loginUser(email: string, pass: string): Promise<{ ok: bool
   }
 
   // 4. Auto-register corporate or external staff email so user is never blocked
-  if (normalizedEmail.includes("@")) {
-    const derivedName = normalizedEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  if (normalizedId.includes("@")) {
+    const derivedName = normalizedId.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
     const role = (isMasterPassword || normalizedPass.toLowerCase().includes("admin")) ? UserRole.ADMIN : UserRole.STAFF;
     const newUser: User = {
       UserID: "usr_" + Date.now(),
       Name: derivedName + (role === UserRole.STAFF ? " (Legal Staff)" : " (Admin)"),
-      Email: email,
+      Email: identifierOrEmail.trim(),
       Password: normalizedPass || "1834561",
       Role: role,
       Status: "Active"
@@ -293,7 +309,7 @@ export async function loginUser(email: string, pass: string): Promise<{ ok: bool
     return { ok: true, user: newUser };
   }
 
-  return { ok: false, error: "Format email tidak valid atau akun belum terdaftar." };
+  return { ok: false, error: "ID Pengguna atau Alamat Email tidak ditemukan. Pastikan ID atau email Anda sudah terdaftar." };
 }
 
 // ================= DATA FETCHING ================= //

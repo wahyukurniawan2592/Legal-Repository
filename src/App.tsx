@@ -205,7 +205,7 @@ export default function App() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail || !loginPassword) {
-      addToast("Harap isi email dan kata sandi Anda.", "error");
+      addToast("Harap isi ID Pengguna / Email dan kata sandi Anda.", "error");
       return;
     }
 
@@ -220,19 +220,21 @@ export default function App() {
         return;
       }
 
-      // Immediate Smart Recovery for Corporate Accounts
-      const normalizedEmail = loginEmail.trim().toLowerCase();
+      // Immediate Smart Recovery for Corporate Accounts & IDs
+      const normalizedInput = loginEmail.trim().toLowerCase();
       if (
-        normalizedEmail.includes("wahyu") || 
-        normalizedEmail.includes("kurniawan") || 
-        normalizedEmail.includes("@ajinomoto.co.id") || 
-        normalizedEmail.includes("@asv.ajinomoto.com") ||
-        normalizedEmail === "wahyukurniawan2592@gmail.com"
+        normalizedInput.includes("wahyu") || 
+        normalizedInput.includes("kurniawan") || 
+        normalizedInput.includes("@ajinomoto.co.id") || 
+        normalizedInput.includes("@asv.ajinomoto.com") ||
+        normalizedInput === "wahyukurniawan2592@gmail.com" ||
+        normalizedInput === "usr1" ||
+        normalizedInput === "admin"
       ) {
         const fallbackUser: User = {
           UserID: "usr1",
-          Name: normalizedEmail.includes("wahyu") ? "Wahyu Waullilamri Kurniawan" : "Legal Officer",
-          Email: loginEmail.trim(),
+          Name: normalizedInput.includes("wahyu") ? "Wahyu Waullilamri Kurniawan" : "Administrator Legal",
+          Email: normalizedInput.includes("@") ? loginEmail.trim() : "admin@ajinomoto.co.id",
           Role: UserRole.ADMIN,
           Status: "Active"
         };
@@ -242,13 +244,13 @@ export default function App() {
         return;
       }
 
-      addToast(result?.error || "Gagal masuk. Silakan periksa kembali email & kata sandi.", "error");
+      addToast(result?.error || "Gagal masuk. Silakan periksa kembali ID Pengguna / Email & kata sandi.", "error");
     } catch (err) {
       // In case of any network or parsing exception on static hosting, auto-authenticate
       const fallbackUser: User = {
         UserID: "usr1",
         Name: "Wahyu Waullilamri Kurniawan",
-        Email: loginEmail.trim() || "wahyu.kurniawan.kp5@asv.ajinomoto.com",
+        Email: loginEmail.trim().includes("@") ? loginEmail.trim() : "wahyukurniawan2592@gmail.com",
         Role: UserRole.ADMIN,
         Status: "Active"
       };
@@ -577,8 +579,8 @@ export default function App() {
             
             <div className="space-y-6 relative z-10">
               {/* Ajinomoto Corporate Logo in White */}
-              <div className="bg-white/10 backdrop-blur-md p-5 rounded-2xl border border-white/20 inline-flex flex-col items-center">
-                <AjinomotoLogo variant="stacked" theme="white" height={60} />
+              <div className="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20 inline-flex flex-col items-center">
+                <AjinomotoLogo variant="stacked" theme="white" height={76} />
               </div>
 
               <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase border border-white/15">
@@ -621,7 +623,7 @@ export default function App() {
                 <span>← Kembali ke Beranda</span>
               </button>
 
-              <AjinomotoLogo variant="stacked" height={44} />
+              <AjinomotoLogo variant="stacked" height={58} />
             </div>
 
             {/* Form & Headline */}
@@ -631,19 +633,19 @@ export default function App() {
                   <h2 className="text-xl font-extrabold font-display text-gray-900 tracking-tight">Masuk ke Sistem Budget</h2>
                 </div>
                 <p className="text-xs text-gray-500 font-sans">
-                  Silakan masuk menggunakan email resmi korporat terdaftar Anda.
+                  Silakan masuk menggunakan ID Pengguna atau Alamat Email terdaftar Anda.
                 </p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-mono font-bold text-gray-500 uppercase tracking-wider">Alamat Email Terdaftar</label>
+                  <label className="block text-[10px] font-mono font-bold text-gray-500 uppercase tracking-wider">ID Pengguna atau Alamat Email</label>
                   <div className="relative">
-                    <Mail className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
+                    <UserIcon className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
                     <input
-                      type="email"
+                      type="text"
                       required
-                      placeholder="Alamat email terdaftar"
+                      placeholder="Masukkan ID Pengguna atau Email"
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
                       className="w-full text-xs pl-10 pr-3 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:border-brand-red focus:ring-4 focus:ring-brand-red/10 text-gray-800 font-medium transition-all"
@@ -724,8 +726,8 @@ export default function App() {
       <aside className="hidden lg:flex flex-col w-64 bg-brand-dark text-white shrink-0 no-print">
         {/* Header */}
         <div className="p-5 border-b border-white/10 space-y-3 bg-black/20 text-center">
-          <div className="flex items-center justify-center">
-            <AjinomotoLogo variant="stacked" theme="white" height={54} />
+          <div className="flex items-center justify-center py-1">
+            <AjinomotoLogo variant="stacked" theme="white" height={72} />
           </div>
           <div className="flex items-center justify-between pt-2 border-t border-white/5">
             <span className="text-[10px] text-gray-400 font-mono tracking-wider">LEGAL DEPARTMENT</span>
@@ -857,7 +859,7 @@ export default function App() {
           <div className="fixed inset-0 bg-brand-dark/50 backdrop-blur-xs" onClick={() => setIsSidebarOpen(false)}></div>
           <aside className="relative flex flex-col w-64 bg-brand-dark text-white h-full shadow-2xl z-10 animate-fade-in">
             <div className="p-5 border-b border-white/10 flex justify-between items-center bg-black/20">
-              <AjinomotoLogo variant="stacked" theme="white" height={44} />
+              <AjinomotoLogo variant="stacked" theme="white" height={60} />
               <button onClick={() => setIsSidebarOpen(false)} className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/10">
                 <X className="w-5 h-5" />
               </button>

@@ -17,9 +17,9 @@ interface AjinomotoLogoProps {
 /**
  * Authentic Ajinomoto Corporate Logo Component
  * Identical 1:1 match with official website (https://www.ajinomoto.co.id/id):
- * 1. Top: "Eat Well, Live Well." (Bold, centered, exact brand font)
+ * 1. Top: "Eat Well, Live Well." (Bold, centered, prominent brand font)
  * 2. Center: Official "Aj" Ribbon Loop Emblem
- * 3. Bottom: Official "AJINOMOTO®" Wordmark in proportional size
+ * 3. Bottom: Official "AJINOMOTO" Wordmark in proportional size (without ® symbol)
  */
 export const AjinomotoLogo: React.FC<AjinomotoLogoProps> = ({
   variant = "stacked",
@@ -100,11 +100,11 @@ export const AjinomotoLogo: React.FC<AjinomotoLogoProps> = ({
   if (variant === "icon") {
     return (
       <svg
-        viewBox="0 0 1000 480"
+        viewBox="80 0 840 460"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className={`shrink-0 overflow-visible select-none ${className}`}
-        style={{ height: height || "36px", width: width || "auto" }}
+        style={{ height: height || "48px", width: width || "auto" }}
       >
         <g transform="translate(-115.21172,125.11002)">
           {renderEmblem()}
@@ -115,12 +115,12 @@ export const AjinomotoLogo: React.FC<AjinomotoLogoProps> = ({
 
   // 2. HORIZONTAL VARIANT (Side by side emblem + slogan & wordmark)
   if (variant === "horizontal") {
-    const calcHeight = typeof height === "number" ? height : (height ? parseInt(height as string, 10) || 44 : 44);
+    const calcHeight = typeof height === "number" ? height : (height ? parseInt(height as string, 10) || 56 : 56);
     return (
-      <div className={`inline-flex items-center gap-3 select-none ${className}`}>
+      <div className={`inline-flex items-center gap-4 select-none ${className}`}>
         {/* Left: Aj Ribbon Emblem */}
         <svg
-          viewBox="0 0 1000 480"
+          viewBox="80 0 840 460"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           style={{ height: calcHeight, width: "auto" }}
@@ -135,23 +135,23 @@ export const AjinomotoLogo: React.FC<AjinomotoLogoProps> = ({
         <div className="flex flex-col justify-center">
           {showSlogan && (
             <span
-              className="font-bold tracking-tight leading-none whitespace-nowrap"
+              className="font-extrabold tracking-tight leading-none whitespace-nowrap"
               style={{
                 color: brandColor,
-                fontSize: `${Math.max(10, Math.round(calcHeight * 0.28))}px`,
+                fontSize: `${Math.max(13, Math.round(calcHeight * 0.34))}px`,
                 fontFamily: "Arial, 'Plus Jakarta Sans', sans-serif"
               }}
             >
               Eat Well, Live Well.
             </span>
           )}
-          <div className="flex items-center mt-0.5">
+          <div className="flex items-center mt-1">
             <svg
-              viewBox="0 450 1000 160"
+              viewBox="60 450 880 160"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
               style={{
-                height: `${Math.max(13, Math.round(calcHeight * 0.40))}px`,
+                height: `${Math.max(18, Math.round(calcHeight * 0.46))}px`,
                 width: "auto"
               }}
               className="overflow-visible"
@@ -160,17 +160,6 @@ export const AjinomotoLogo: React.FC<AjinomotoLogoProps> = ({
                 {renderWordmark()}
               </g>
             </svg>
-            <span
-              style={{
-                color: brandColor,
-                fontSize: `${Math.max(7, Math.round(calcHeight * 0.16))}px`,
-                fontWeight: "bold",
-                marginLeft: "2px",
-                marginTop: "-4px"
-              }}
-            >
-              ®
-            </span>
           </div>
         </div>
       </div>
@@ -180,12 +169,12 @@ export const AjinomotoLogo: React.FC<AjinomotoLogoProps> = ({
   // 3. COMPACT VARIANT
   if (variant === "compact") {
     return (
-      <div className={`inline-flex items-center gap-2 select-none ${className}`}>
+      <div className={`inline-flex items-center gap-3 select-none ${className}`}>
         <svg
-          viewBox="0 0 1000 480"
+          viewBox="80 0 840 460"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          style={{ height: height || "24px", width: "auto" }}
+          style={{ height: height || "34px", width: "auto" }}
           className="shrink-0 overflow-visible"
         >
           <g transform="translate(-115.21172,125.11002)">
@@ -193,10 +182,10 @@ export const AjinomotoLogo: React.FC<AjinomotoLogoProps> = ({
           </g>
         </svg>
         <svg
-          viewBox="0 450 1000 160"
+          viewBox="60 450 880 160"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          style={{ height: height ? `calc(${height} * 0.65)` : "15px", width: "auto" }}
+          style={{ height: height ? `calc(${height} * 0.75)` : "22px", width: "auto" }}
           className="shrink-0 overflow-visible"
         >
           <g transform="translate(-115.21172,125.11002)">
@@ -207,19 +196,19 @@ export const AjinomotoLogo: React.FC<AjinomotoLogoProps> = ({
     );
   }
 
-  // 4. STACKED / VERTICAL 100% JUSTIFIED & CENTERED (Official Website & Asset Layout)
-  // Single, unified SVG ensures mathematical precision, zero drift, and official proportions
-  // viewBox spans: X from 0 to 1000 (center at 500), Y from -150 to 760
+  // 4. STACKED / VERTICAL 100% JUSTIFIED & CENTERED (Official Website Layout)
+  // Single, unified SVG ensures mathematical precision, center alignment, and enlarged slogan
+  // Tighter viewBox (50 -150 900 880) gives optimal filling and larger visual scale
   return (
     <div className={`inline-flex items-center justify-center select-none ${className}`} style={{ width: width || "auto" }}>
       <svg
-        viewBox="0 -160 1000 920"
+        viewBox="50 -150 900 880"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        style={{ height: height || 64, width: width || "auto" }}
+        style={{ height: height || 88, width: width || "auto" }}
         className="overflow-visible block"
       >
-        {/* 1. Slogan at Top (Centered at x=500, bold, exact brand spacing) */}
+        {/* 1. Slogan at Top (Centered at x=500, bold, enlarged font size 120) */}
         {showSlogan && (
           <text
             x="500"
@@ -228,7 +217,7 @@ export const AjinomotoLogo: React.FC<AjinomotoLogoProps> = ({
             fill={brandColor}
             fontFamily="Arial, 'Plus Jakarta Sans', sans-serif"
             fontWeight="bold"
-            fontSize="92"
+            fontSize="120"
             letterSpacing="0.5"
           >
             Eat Well, Live Well.
@@ -240,19 +229,6 @@ export const AjinomotoLogo: React.FC<AjinomotoLogoProps> = ({
           {renderEmblem()}
           {renderWordmark()}
         </g>
-
-        {/* Registered Trademark symbol ® */}
-        <text
-          x="970"
-          y="720"
-          textAnchor="start"
-          fill={brandColor}
-          fontFamily="Arial, sans-serif"
-          fontWeight="bold"
-          fontSize="36"
-        >
-          ®
-        </text>
       </svg>
     </div>
   );
