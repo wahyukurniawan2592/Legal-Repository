@@ -414,19 +414,47 @@ export async function fetchLogsApi(): Promise<AuditLog[]> {
 
 export async function fetchUsersApi(): Promise<User[]> {
   return smartRequest("/api/users", undefined, async () => {
+    const localDb = getLocalDb();
+    const localUsers = localDb.users || [];
     try {
       const { data } = await supabase.from("users").select("*");
       if (data && data.length > 0) {
-        return data.map(u => ({
-          UserID: u.user_id || u.UserID || u.id,
-          Name: u.name || u.Name,
-          Email: u.email || u.Email,
-          Role: (u.role === "Administrator" ? UserRole.ADMIN : UserRole.STAFF) as UserRole,
-          Status: u.status || u.Status || "Active"
-        }));
+        const mappedFromSupabase: User[] = data.map(u => {
+          const id = u.user_id || u.UserID || u.id;
+          const email = (u.email || u.Email || "").toLowerCase();
+          const matchedLocal = localUsers.find(lu => lu.UserID === id || lu.Email?.toLowerCase() === email);
+          
+          let role = UserRole.STAFF;
+          const rawRole = u.role || u.Role;
+          if (rawRole === "Administrator" || rawRole === UserRole.ADMIN) {
+            role = UserRole.ADMIN;
+          }
+
+          return {
+            UserID: id,
+            Name: u.name || u.Name || matchedLocal?.Name || "Legal User",
+            Email: email || matchedLocal?.Email || "user@ajinomoto.co.id",
+            Password: u.password || u.Password || matchedLocal?.Password || "legalstaff",
+            Role: role,
+            Status: (u.status || u.Status || matchedLocal?.Status || "Active") as "Active" | "Inactive"
+          };
+        });
+
+        // Ensure all local users are preserved if not yet in Supabase
+        const finalUsers: User[] = [...mappedFromSupabase];
+        for (const lu of localUsers) {
+          if (!finalUsers.some(fu => fu.UserID === lu.UserID || fu.Email.toLowerCase() === lu.Email.toLowerCase())) {
+            finalUsers.push(lu);
+          }
+        }
+
+        // Cache back to local storage
+        localDb.users = finalUsers;
+        saveLocalDb(localDb);
+        return finalUsers;
       }
     } catch (e) {}
-    return getLocalDb().users;
+    return localUsers;
   });
 }
 
@@ -841,6 +869,39 @@ export async function deleteCategoryApi(id: string, user?: User) {
 // ================= USER CRUD ================= //
 
 export async function addUserApi(uData: any, user?: User) {
+  const db = getLocalDb();
+  const newUser: User = {
+    UserID: "usr_" + Date.now(),
+    Name: uData.Name,
+    Email: (uData.Email || "").trim().toLowerCase(),
+    Password: uData.Password || "ajinomoto123",
+    Role: uData.Role,
+    Status: uData.Status || "Active"
+  };
+
+  // Immediate Local Persistence
+  db.users.push(newUser);
+  saveLocalDb(db);
+  addAuditLogLocal("CREATE_USER", `Menambahkan user baru: ${newUser.Name} (${newUser.Email})`, user);
+
+  // Background Direct Supabase Sync
+  Promise.resolve(supabase.from("users").upsert([
+    {
+      user_id: newUser.UserID,
+      UserID: newUser.UserID,
+      name: newUser.Name,
+      Name: newUser.Name,
+      email: newUser.Email,
+      Email: newUser.Email,
+      password: newUser.Password,
+      Password: newUser.Password,
+      role: newUser.Role,
+      Role: newUser.Role,
+      status: newUser.Status,
+      Status: newUser.Status
+    }
+  ])).catch(() => {});
+
   return smartRequest(
     "/api/users",
     {
@@ -849,24 +910,64 @@ export async function addUserApi(uData: any, user?: User) {
       body: JSON.stringify({ ...uData, userEmail: user?.Email, userName: user?.Name })
     },
     async () => {
-      const db = getLocalDb();
-      const newUser: User = {
-        UserID: "usr_" + Date.now(),
-        Name: uData.Name,
-        Email: uData.Email,
-        Password: uData.Password || "ajinomoto123",
-        Role: uData.Role,
-        Status: uData.Status || "Active"
-      };
-      db.users.push(newUser);
-      saveLocalDb(db);
-      addAuditLogLocal("CREATE_USER", `Menambahkan user baru: ${newUser.Name} (${newUser.Email})`, user);
       return newUser;
     }
   );
 }
 
 export async function editUserApi(id: string, uData: any, user?: User) {
+  const db = getLocalDb();
+  const idx = db.users.findIndex(u => u.UserID === id);
+  let updatedUser: User;
+  
+  if (idx !== -1) {
+    db.users[idx] = { ...db.users[idx], ...uData };
+    updatedUser = db.users[idx];
+    saveLocalDb(db);
+    addAuditLogLocal("UPDATE_USER", `Mengubah data user ${updatedUser.Name}`, user);
+
+    // If currently logged in user is being edited, update local storage session
+    try {
+      const stored = localStorage.getItem("current_legal_user");
+      if (stored) {
+        const currentUserObj = JSON.parse(stored);
+        if (currentUserObj.UserID === id || currentUserObj.Email.toLowerCase() === updatedUser.Email.toLowerCase()) {
+          const updatedSession = { ...currentUserObj, ...updatedUser };
+          localStorage.setItem("current_legal_user", JSON.stringify(updatedSession));
+        }
+      }
+    } catch (e) {}
+
+    // Background Direct Supabase Sync
+    Promise.resolve(supabase.from("users").upsert([
+      {
+        user_id: updatedUser.UserID,
+        UserID: updatedUser.UserID,
+        name: updatedUser.Name,
+        Name: updatedUser.Name,
+        email: updatedUser.Email,
+        Email: updatedUser.Email,
+        password: updatedUser.Password,
+        Password: updatedUser.Password,
+        role: updatedUser.Role,
+        Role: updatedUser.Role,
+        status: updatedUser.Status,
+        Status: updatedUser.Status
+      }
+    ])).catch(() => {});
+  } else {
+    updatedUser = {
+      UserID: id,
+      Name: uData.Name || "Legal User",
+      Email: (uData.Email || "").trim().toLowerCase(),
+      Password: uData.Password || "legalstaff",
+      Role: uData.Role || UserRole.STAFF,
+      Status: uData.Status || "Active"
+    };
+    db.users.push(updatedUser);
+    saveLocalDb(db);
+  }
+
   return smartRequest(
     `/api/users/${id}`,
     {
@@ -875,33 +976,30 @@ export async function editUserApi(id: string, uData: any, user?: User) {
       body: JSON.stringify({ ...uData, userEmail: user?.Email, userName: user?.Name })
     },
     async () => {
-      const db = getLocalDb();
-      const idx = db.users.findIndex(u => u.UserID === id);
-      if (idx !== -1) {
-        db.users[idx] = { ...db.users[idx], ...uData };
-        saveLocalDb(db);
-        addAuditLogLocal("UPDATE_USER", `Mengubah data user ${db.users[idx].Name}`, user);
-        return db.users[idx];
-      }
-      throw new Error("User tidak ditemukan.");
+      return updatedUser;
     }
   );
 }
 
 export async function deleteUserApi(id: string, user?: User) {
+  const db = getLocalDb();
+  const target = db.users.find(u => u.UserID === id);
+  db.users = db.users.filter(u => u.UserID !== id);
+  saveLocalDb(db);
+
+  if (target) {
+    addAuditLogLocal("DELETE_USER", `Menghapus user ${target.Name}`, user);
+  }
+
+  // Background Direct Supabase Delete
+  Promise.resolve(supabase.from("users").delete().or(`user_id.eq.${id},UserID.eq.${id},id.eq.${id}`)).catch(() => {});
+
   const emailParam = encodeURIComponent(user?.Email || "");
   const nameParam = encodeURIComponent(user?.Name || "");
   return smartRequest(
     `/api/users/${id}?userEmail=${emailParam}&userName=${nameParam}`,
     { method: "DELETE" },
     async () => {
-      const db = getLocalDb();
-      const target = db.users.find(u => u.UserID === id);
-      db.users = db.users.filter(u => u.UserID !== id);
-      saveLocalDb(db);
-      if (target) {
-        addAuditLogLocal("DELETE_USER", `Menghapus user ${target.Name}`, user);
-      }
       return { success: true };
     }
   );

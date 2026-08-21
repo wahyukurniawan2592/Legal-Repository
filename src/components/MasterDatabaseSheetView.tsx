@@ -571,7 +571,8 @@ export default function MasterDatabaseSheetView({
           })
         });
 
-        if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
           addToast(`Berhasil memperbarui ${rowIdsToSave.length} data pada Master Sheet!`, "success");
           setModifiedRows({});
           onRefreshData();
@@ -1001,7 +1002,8 @@ export default function MasterDatabaseSheetView({
           })
         });
 
-        if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
           addToast(`Sukses memperbarui & mengimpor ${parsedImportRows.length} data ke dalam Master Database!`, "success");
           setParsedImportRows([]);
           setImportCsvText("");

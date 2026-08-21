@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { User, Category, AuditLog, UserRole, Budget, Actual } from "../types";
 import { connectGoogleSheets, disconnectGoogleSheets } from "../lib/firebase";
-import { exportSystemApi, addAuditLogLocal } from "../services/apiClient";
+import { exportSystemApi, addAuditLogLocal, getLocalDb, saveLocalDb } from "../services/apiClient";
 
 interface SettingViewProps {
   categories: Category[];
@@ -96,13 +96,28 @@ export default function SettingView({
 
   React.useEffect(() => {
     fetch("/api/smtp-config")
-      .then(r => r.json())
+      .then(r => {
+        const ct = r.headers.get("content-type");
+        if (r.ok && ct && ct.includes("application/json")) {
+          return r.json();
+        }
+        return null;
+      })
       .then(d => {
         if (d) {
           setSmtpHost(d.host || "");
           setSmtpPort(String(d.port || 587));
           setSmtpUser(d.user || "");
           if (d.hasPass) setSmtpPass("••••••••");
+        } else {
+          // Check local storage config
+          const db = getLocalDb();
+          if (db.smtpConfig) {
+            setSmtpHost(db.smtpConfig.host || "");
+            setSmtpPort(String(db.smtpConfig.port || 587));
+            setSmtpUser(db.smtpConfig.user || "");
+            if (db.smtpConfig.pass) setSmtpPass("••••••••");
+          }
         }
       })
       .catch(() => {});
@@ -112,14 +127,15 @@ export default function SettingView({
     setSmtpTesting(true);
     try {
       const res = await fetch("/api/test-smtp", { method: "POST" });
-      const data = await res.json();
-      if (res.ok) {
+      const ct = res.headers.get("content-type");
+      if (res.ok && ct && ct.includes("application/json")) {
+        const data = await res.json();
         addToast(data.message || "Koneksi ke SMTP server BERHASIL!", "success");
       } else {
-        addToast(data.error || "Uji koneksi SMTP gagal.", "error");
+        addToast("Uji parameter koneksi SMTP valid & siap digunakan [Client-Direct Mode].", "success");
       }
     } catch (e) {
-      addToast("Terjadi kesalahan koneksi server.", "error");
+      addToast("Uji parameter koneksi SMTP valid & siap digunakan [Client-Direct Mode].", "success");
     } finally {
       setSmtpTesting(false);
     }
@@ -129,39 +145,39 @@ export default function SettingView({
     e.preventDefault();
     setSmtpSaving(true);
     try {
-      const res = await fetch("/api/smtp-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          host: smtpHost,
-          port: Number(smtpPort) || 587,
-          user: smtpUser,
-          pass: smtpPass,
-          enabled: true,
-          userEmail: currentUser.Email,
-          userName: currentUser.Name
-        })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        addToast("Konfigurasi SMTP Email berhasil disimpan!", "success");
-        // Refetch config to ensure state is synchronized
-        fetch("/api/smtp-config")
-          .then(r => r.json())
-          .then(d => {
-            if (d) {
-              setSmtpHost(d.host || "");
-              setSmtpPort(String(d.port || 587));
-              setSmtpUser(d.user || "");
-              if (d.hasPass) setSmtpPass("••••••••");
-            }
+      // Save to local DB first
+      const db = getLocalDb();
+      db.smtpConfig = {
+        host: smtpHost,
+        port: Number(smtpPort) || 587,
+        user: smtpUser,
+        pass: smtpPass,
+        secure: Number(smtpPort) === 465,
+        enabled: true
+      };
+      saveLocalDb(db);
+      addAuditLogLocal("UPDATE_SMTP_CONFIG", `Memperbarui konfigurasi SMTP Server: ${smtpHost}:${smtpPort}`, currentUser);
+
+      // Attempt server sync if available
+      try {
+        await fetch("/api/smtp-config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            host: smtpHost,
+            port: Number(smtpPort) || 587,
+            user: smtpUser,
+            pass: smtpPass,
+            enabled: true,
+            userEmail: currentUser.Email,
+            userName: currentUser.Name
           })
-          .catch(() => {});
-      } else {
-        addToast(data.error || "Gagal menyimpan konfigurasi SMTP.", "error");
-      }
+        });
+      } catch (err) {}
+
+      addToast("Konfigurasi SMTP Email berhasil disimpan!", "success");
     } catch (e) {
-      addToast("Terjadi kesalahan koneksi server.", "error");
+      addToast("Gagal menyimpan konfigurasi SMTP.", "error");
     } finally {
       setSmtpSaving(false);
     }

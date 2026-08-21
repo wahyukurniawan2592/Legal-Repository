@@ -1159,6 +1159,7 @@ export default function App() {
                 currentUser={currentUser}
                 onAddUser={handleAddUser}
                 onEditUser={handleEditUser}
+                onDeleteUser={handleDeleteUser}
                 addToast={addToast}
               />
             ) : (

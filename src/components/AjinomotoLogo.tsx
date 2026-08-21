@@ -25,7 +25,7 @@ export const AjinomotoLogo: React.FC<AjinomotoLogoProps> = ({
   showSlogan = true
 }) => {
   const isWhite = theme === "white";
-  const brandColor = isWhite ? "#FFFFFF" : "#ed1c24";
+  const brandColor = isWhite ? "#FFFFFF" : "#ED1C24";
 
   // 1. Icon Variant: The authentic Aj emblem with dot and flame
   if (variant === "icon") {

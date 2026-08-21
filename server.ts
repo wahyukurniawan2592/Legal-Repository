@@ -132,14 +132,14 @@ const SEED_USERS: User[] = [
   {
     UserID: "usr1",
     Name: "Wahyu Waullilamri Kurniawan",
-    Email: "admin@ajinomoto.co.id",
-    Password: "legaladmin",
+    Email: "wahyu.kurniawan.kp5@asv.ajinomoto.com",
+    Password: "1834561",
     Role: UserRole.ADMIN,
     Status: "Active"
   },
   {
     UserID: "usr2",
-    Name: "Rian Wijaya (Staff)",
+    Name: "Dony Gilang Ramadhan",
     Email: "staff@ajinomoto.co.id",
     Password: "legalstaff",
     Role: UserRole.STAFF,
@@ -147,7 +147,7 @@ const SEED_USERS: User[] = [
   },
   {
     UserID: "usr3",
-    Name: "Andi Pratama (Staff)",
+    Name: "Dicky Wijaya",
     Email: "andi@ajinomoto.co.id",
     Password: "legalstaff",
     Role: UserRole.STAFF,
@@ -608,8 +608,43 @@ async function syncFromSupabase(): Promise<void> {
       return p;
     });
 
+    // Merge and normalize users
+    const existingUsers = (localData.users && localData.users.length > 0) ? localData.users : (memoryCache?.users || SEED_USERS);
+    let resolvedUsers: User[] = [];
+    if (users && users.length > 0) {
+      resolvedUsers = users.map((u: any) => {
+        const id = u.UserID || u.user_id || u.id;
+        const email = (u.Email || u.email || "").toLowerCase();
+        const matchedLocal = existingUsers.find(lu => lu.UserID === id || lu.Email?.toLowerCase() === email);
+        
+        let role = UserRole.STAFF;
+        const rawRole = u.Role || u.role;
+        if (rawRole === "Administrator" || rawRole === UserRole.ADMIN) {
+          role = UserRole.ADMIN;
+        }
+
+        return {
+          UserID: id || `usr_${Date.now()}`,
+          Name: u.Name || u.name || matchedLocal?.Name || "Legal User",
+          Email: email || matchedLocal?.Email || "user@ajinomoto.co.id",
+          Password: u.Password || u.password || matchedLocal?.Password || "legalstaff",
+          Role: role,
+          Status: (u.Status || u.status || matchedLocal?.Status || "Active") as "Active" | "Inactive"
+        };
+      });
+
+      // Preserve local users if not found in Supabase
+      for (const lu of existingUsers) {
+        if (!resolvedUsers.some(ru => ru.UserID === lu.UserID || ru.Email.toLowerCase() === lu.Email.toLowerCase())) {
+          resolvedUsers.push(lu);
+        }
+      }
+    } else {
+      resolvedUsers = existingUsers;
+    }
+
     memoryCache = {
-      users: (users && users.length > 0) ? users : (isBrandNewDB ? (localData.users || SEED_USERS) : []),
+      users: resolvedUsers,
       budgets: rawBudgets,
       plans: rawPlans,
       actuals: (actuals && actuals.length > 0) ? actuals : (isBrandNewDB ? (localData.actuals || SEED_ACTUALS) : []),
@@ -799,7 +834,15 @@ async function syncDBToSupabase(db: DatabaseSchema): Promise<void> {
     if (db.users && db.users.length > 0) {
       const cleanUsers = db.users.map(u => {
         const { Company, ...rest } = u as any;
-        return rest;
+        return {
+          ...rest,
+          user_id: u.UserID,
+          name: u.Name,
+          email: u.Email,
+          password: u.Password || "legalstaff",
+          role: u.Role,
+          status: u.Status || "Active"
+        };
       });
       await supabase.from("users").upsert(cleanUsers);
     }
@@ -1986,6 +2029,34 @@ app.put("/api/users/:id", (req, res) => {
   );
 
   res.json(db.users[index]);
+});
+
+app.delete("/api/users/:id", async (req, res) => {
+  const { id } = req.params;
+  const userEmail = (req.query.userEmail as string) || (req.body?.userEmail as string) || req.headers["x-user-email"];
+  const userName = (req.query.userName as string) || (req.body?.userName as string) || req.headers["x-user-name"];
+
+  const db = loadDB();
+  const index = db.users.findIndex(u => u.UserID === id);
+  if (index === -1) {
+    return res.status(404).json({ error: "Pengguna tidak ditemukan." });
+  }
+
+  const target = db.users[index];
+  db.users = db.users.filter(u => u.UserID !== id);
+  saveDB(db);
+
+  await deleteSupabaseRow("users", "user_id", id);
+  await deleteSupabaseRow("users", "UserID", id);
+
+  addAuditLog(
+    (userEmail as string) || "system@ajinomoto.co.id",
+    (userName as string) || "System",
+    `Menghapus akun pengguna legal: ${target.Name} (${target.Email})`,
+    "SYSTEM"
+  );
+
+  res.json({ success: true, message: `Akun ${target.Name} berhasil dihapus.` });
 });
 
 // Gemini AI Analysis API
