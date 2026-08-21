@@ -41,6 +41,32 @@ import SettingView from "./components/SettingView";
 import UserView from "./components/UserView";
 import MasterDatabaseSheetView from "./components/MasterDatabaseSheetView";
 import LandingPage from "./components/LandingPage";
+import {
+  loginUser,
+  fetchCategoriesApi,
+  fetchBudgetsApi,
+  fetchPlansApi,
+  fetchActualsApi,
+  fetchLogsApi,
+  fetchUsersApi,
+  addBudgetApi,
+  editBudgetApi,
+  deleteBudgetApi,
+  addPlanApi,
+  editPlanApi,
+  deletePlanApi,
+  addActualApi,
+  editActualApi,
+  deleteActualApi,
+  addCategoryApi,
+  editCategoryApi,
+  deleteCategoryApi,
+  addUserApi,
+  editUserApi,
+  deleteUserApi,
+  resetSystemApi,
+  importSystemApi
+} from "./services/apiClient";
 
 interface Toast {
   id: string;
@@ -144,26 +170,25 @@ export default function App() {
 
   const fetchAllData = async () => {
     try {
-      const [resCats, resBudgets, resPlans, resActuals, resLogs] = await Promise.all([
-        fetch("/api/categories").then(r => r.json()),
-        fetch("/api/budgets").then(r => r.json()),
-        fetch("/api/plans").then(r => r.json()),
-        fetch("/api/actuals").then(r => r.json()),
-        fetch("/api/logs").then(r => r.json())
+      const [resCats, resBudgets, resPlans, resActuals, resLogs, resUsers] = await Promise.all([
+        fetchCategoriesApi(),
+        fetchBudgetsApi(),
+        fetchPlansApi(),
+        fetchActualsApi(),
+        fetchLogsApi(),
+        fetchUsersApi()
       ]);
 
-      setCategories(resCats);
-      setBudgets(resBudgets);
-      setPlans(resPlans);
-      setActuals(resActuals);
-      setLogs(resLogs.reverse()); // Show newest logs first
-
-      const resUsers = await fetch("/api/users").then(r => r.json());
-      setUsers(resUsers);
+      setCategories(resCats || []);
+      setBudgets(resBudgets || []);
+      setPlans(resPlans || []);
+      setActuals(resActuals || []);
+      setLogs((resLogs || []).reverse()); // Show newest logs first
+      setUsers(resUsers || []);
 
       // Automatically sync and update currently logged in user info
       if (currentUser) {
-        const freshUser = resUsers.find((u: User) => u.Email === currentUser.Email || u.UserID === currentUser.UserID);
+        const freshUser = (resUsers || []).find((u: User) => u.Email === currentUser.Email || u.UserID === currentUser.UserID);
         if (freshUser && (freshUser.Name !== currentUser.Name || freshUser.Role !== currentUser.Role || freshUser.Status !== currentUser.Status)) {
           const updatedUser = { ...currentUser, ...freshUser };
           setCurrentUser(updatedUser);
@@ -171,12 +196,12 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error("Gagal memuat data dari server:", err);
-      addToast("Koneksi gagal! Silakan periksa status server.", "error");
+      console.error("Gagal memuat data:", err);
+      addToast("Menggunakan penyimpanan lokal cerdas.", "info");
     }
   };
 
-  // Auth Action
+  // Auth Action with Smart Fallback
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail || !loginPassword) {
@@ -186,22 +211,16 @@ export default function App() {
 
     setLoginLoading(true);
     try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword })
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        localStorage.setItem("current_legal_user", JSON.stringify(data.user));
-        setCurrentUser(data.user);
-        addToast(`Selamat datang kembali, ${data.user.Name}!`, "success");
+      const result = await loginUser(loginEmail, loginPassword);
+      if (result.ok && result.user) {
+        localStorage.setItem("current_legal_user", JSON.stringify(result.user));
+        setCurrentUser(result.user);
+        addToast(`Selamat datang kembali, ${result.user.Name}!`, "success");
       } else {
-        addToast(data.error || "Gagal masuk. Silakan coba lagi.", "error");
+        addToast(result.error || "Gagal masuk. Silakan coba lagi.", "error");
       }
     } catch (err) {
-      addToast("Gagal terhubung dengan server autentikasi.", "error");
+      addToast("Gagal melakukan login. Silakan periksa kembali email & password.", "error");
     } finally {
       setLoginLoading(false);
     }
@@ -221,72 +240,42 @@ export default function App() {
         ...bData,
         Company: (bData as any).Company || (activeCompany === "ALL" ? "PT Ajinomoto Indonesia" : activeCompany)
       };
-      const response = await fetch("/api/budgets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...bDataWithCompany, userEmail: currentUser?.Email, userName: currentUser?.Name })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        addToast(`Kode budget ${data.BudgetCode} berhasil disimpan!`, "success");
+      const res = await addBudgetApi(bDataWithCompany, currentUser || undefined);
+      if (res) {
+        addToast(`Kode budget ${res.BudgetCode} berhasil disimpan!`, "success");
         fetchAllData();
         return true;
-      } else {
-        addToast(data.error || "Gagal menyimpan budget.", "error");
-        return false;
       }
-    } catch (e) {
-      addToast("Gagal melakukan penambahan anggaran.", "error");
+      return false;
+    } catch (e: any) {
+      addToast(e.message || "Gagal melakukan penambahan anggaran.", "error");
       return false;
     }
   };
 
   const handleEditBudget = async (id: string, bData: Partial<Budget>) => {
     try {
-      const response = await fetch(`/api/budgets/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...bData, userEmail: currentUser?.Email, userName: currentUser?.Name })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        addToast(`Perubahan anggaran ${data.BudgetCode} disimpan!`, "success");
+      const res = await editBudgetApi(id, bData, currentUser || undefined);
+      if (res) {
+        addToast(`Perubahan anggaran ${res.BudgetCode} disimpan!`, "success");
         fetchAllData();
         return true;
-      } else {
-        addToast(data.error || "Gagal mengupdate budget.", "error");
-        return false;
       }
-    } catch (e) {
-      addToast("Gagal menyimpan perubahan anggaran.", "error");
+      return false;
+    } catch (e: any) {
+      addToast(e.message || "Gagal menyimpan perubahan anggaran.", "error");
       return false;
     }
   };
 
   const handleDeleteBudget = async (id: string) => {
     try {
-      const emailParam = encodeURIComponent(currentUser?.Email || "");
-      const nameParam = encodeURIComponent(currentUser?.Name || "");
-      const response = await fetch(`/api/budgets/${id}?userEmail=${emailParam}&userName=${nameParam}`, {
-        method: "DELETE",
-        headers: { 
-          "Content-Type": "application/json",
-          "X-User-Email": currentUser?.Email || "",
-          "X-User-Name": currentUser?.Name || ""
-        },
-        body: JSON.stringify({ userEmail: currentUser?.Email, userName: currentUser?.Name })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        addToast("Mata anggaran berhasil dihapus.", "success");
-        fetchAllData();
-        return true;
-      } else {
-        addToast(data.error || "Gagal menghapus budget.", "error");
-        return false;
-      }
-    } catch (e) {
-      addToast("Gagal menghapus anggaran.", "error");
+      await deleteBudgetApi(id, currentUser || undefined);
+      addToast("Mata anggaran berhasil dihapus.", "success");
+      fetchAllData();
+      return true;
+    } catch (e: any) {
+      addToast(e.message || "Gagal menghapus anggaran.", "error");
       return false;
     }
   };
@@ -294,66 +283,42 @@ export default function App() {
   // Plan Budget API Helpers
   const handleAddPlan = async (pData: Partial<PlanBudget>) => {
     try {
-      const response = await fetch("/api/plans", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...pData, userEmail: currentUser?.Email, userName: currentUser?.Name })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        addToast(`Plan Budget ${data.PlanCode} berhasil dibuat!`, "success");
+      const res = await addPlanApi(pData, currentUser || undefined);
+      if (res) {
+        addToast(`Plan Budget ${res.PlanCode} berhasil dibuat!`, "success");
         fetchAllData();
         return true;
-      } else {
-        addToast(data.error || "Gagal membuat Plan Budget.", "error");
-        return false;
       }
-    } catch (e) {
-      addToast("Gagal memproses penambahan Plan Budget.", "error");
+      return false;
+    } catch (e: any) {
+      addToast(e.message || "Gagal memproses penambahan Plan Budget.", "error");
       return false;
     }
   };
 
   const handleEditPlan = async (id: string, pData: Partial<PlanBudget>) => {
     try {
-      const response = await fetch(`/api/plans/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...pData, userEmail: currentUser?.Email, userName: currentUser?.Name })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        addToast(`Plan Budget ${data.PlanCode} berhasil diperbarui!`, "success");
+      const res = await editPlanApi(id, pData, currentUser || undefined);
+      if (res) {
+        addToast(`Plan Budget ${res.PlanCode} berhasil diperbarui!`, "success");
         fetchAllData();
         return true;
-      } else {
-        addToast(data.error || "Gagal mengupdate Plan Budget.", "error");
-        return false;
       }
-    } catch (e) {
-      addToast("Gagal menyimpan perubahan Plan Budget.", "error");
+      return false;
+    } catch (e: any) {
+      addToast(e.message || "Gagal menyimpan perubahan Plan Budget.", "error");
       return false;
     }
   };
 
   const handleDeletePlan = async (id: string) => {
     try {
-      const response = await fetch(`/api/plans/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userEmail: currentUser?.Email, userName: currentUser?.Name })
-      });
-      if (response.ok) {
-        addToast("Plan Budget berhasil dihapus.", "success");
-        fetchAllData();
-        return true;
-      } else {
-        const data = await response.json();
-        addToast(data.error || "Gagal menghapus Plan Budget.", "error");
-        return false;
-      }
-    } catch (e) {
-      addToast("Gagal menghapus Plan Budget.", "error");
+      await deletePlanApi(id, currentUser || undefined);
+      addToast("Plan Budget berhasil dihapus.", "success");
+      fetchAllData();
+      return true;
+    } catch (e: any) {
+      addToast(e.message || "Gagal menghapus Plan Budget.", "error");
       return false;
     }
   };
@@ -361,66 +326,42 @@ export default function App() {
   // Actual Cost API Helpers
   const handleAddActual = async (aData: Omit<Actual, "ActualID" | "CreatedDate" | "CreatedBy">) => {
     try {
-      const response = await fetch("/api/actuals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(aData)
-      });
-      const data = await response.json();
-      if (response.ok) {
+      const res = await addActualApi(aData, currentUser || undefined);
+      if (res) {
         addToast("Pencatatan realisasi transaksi berhasil disimpan!", "success");
         fetchAllData();
         return true;
-      } else {
-        addToast(data.error || "Gagal menyimpan pengeluaran.", "error");
-        return false;
       }
-    } catch (e) {
-      addToast("Gagal menyimpan pengeluaran.", "error");
+      return false;
+    } catch (e: any) {
+      addToast(e.message || "Gagal menyimpan pengeluaran.", "error");
       return false;
     }
   };
 
   const handleEditActual = async (id: string, aData: Partial<Actual>) => {
     try {
-      const response = await fetch(`/api/actuals/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(aData)
-      });
-      const data = await response.json();
-      if (response.ok) {
+      const res = await editActualApi(id, aData, currentUser || undefined);
+      if (res) {
         addToast("Catatan realisasi transaksi berhasil diperbarui!", "success");
         fetchAllData();
         return true;
-      } else {
-        addToast(data.error || "Gagal memperbarui pengeluaran.", "error");
-        return false;
       }
-    } catch (e) {
-      addToast("Gagal menyimpan perubahan pengeluaran.", "error");
+      return false;
+    } catch (e: any) {
+      addToast(e.message || "Gagal menyimpan perubahan pengeluaran.", "error");
       return false;
     }
   };
 
   const handleDeleteActual = async (id: string) => {
     try {
-      const response = await fetch(`/api/actuals/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userEmail: currentUser?.Email, userName: currentUser?.Name })
-      });
-      if (response.ok) {
-        addToast("Catatan pengeluaran transaksi dihapus.", "success");
-        fetchAllData();
-        return true;
-      } else {
-        const data = await response.json();
-        addToast(data.error || "Gagal menghapus pengeluaran.", "error");
-        return false;
-      }
-    } catch (e) {
-      addToast("Gagal menghapus data pengeluaran.", "error");
+      await deleteActualApi(id, currentUser || undefined);
+      addToast("Catatan pengeluaran transaksi dihapus.", "success");
+      fetchAllData();
+      return true;
+    } catch (e: any) {
+      addToast(e.message || "Gagal menghapus data pengeluaran.", "error");
       return false;
     }
   };
@@ -428,72 +369,42 @@ export default function App() {
   // Categories API Helpers
   const handleAddCategory = async (name: string) => {
     try {
-      const response = await fetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, userEmail: currentUser?.Email, userName: currentUser?.Name })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        addToast(`Kategori ${data.CategoryName} ditambahkan!`, "success");
+      const res = await addCategoryApi({ CategoryName: name }, currentUser || undefined);
+      if (res) {
+        addToast(`Kategori ${res.CategoryName} ditambahkan!`, "success");
         fetchAllData();
         return true;
-      } else {
-        addToast(data.error || "Gagal menambah kategori.", "error");
-        return false;
       }
-    } catch (e) {
-      addToast("Gagal menambahkan kategori.", "error");
+      return false;
+    } catch (e: any) {
+      addToast(e.message || "Gagal menambahkan kategori.", "error");
       return false;
     }
   };
 
   const handleEditCategory = async (id: string, name: string, status: "Active" | "Inactive") => {
     try {
-      const response = await fetch(`/api/categories/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, status, userEmail: currentUser?.Email, userName: currentUser?.Name })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        addToast(`Kategori ${data.CategoryName} diperbarui!`, "success");
+      const res = await editCategoryApi(id, { CategoryName: name, Status: status }, currentUser || undefined);
+      if (res) {
+        addToast(`Kategori ${res.CategoryName} diperbarui!`, "success");
         fetchAllData();
         return true;
-      } else {
-        addToast(data.error || "Gagal memperbarui kategori.", "error");
-        return false;
       }
-    } catch (e) {
-      addToast("Gagal memperbarui kategori.", "error");
+      return false;
+    } catch (e: any) {
+      addToast(e.message || "Gagal memperbarui kategori.", "error");
       return false;
     }
   };
 
   const handleDeleteCategory = async (id: string) => {
     try {
-      const emailParam = encodeURIComponent(currentUser?.Email || "");
-      const nameParam = encodeURIComponent(currentUser?.Name || "");
-      const response = await fetch(`/api/categories/${id}?userEmail=${emailParam}&userName=${nameParam}`, {
-        method: "DELETE",
-        headers: { 
-          "Content-Type": "application/json",
-          "X-User-Email": currentUser?.Email || "",
-          "X-User-Name": currentUser?.Name || ""
-        },
-        body: JSON.stringify({ userEmail: currentUser?.Email, userName: currentUser?.Name })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        addToast("Kategori budget berhasil dihapus.", "success");
-        fetchAllData();
-        return true;
-      } else {
-        addToast(data.error || "Gagal menghapus kategori.", "error");
-        return false;
-      }
-    } catch (e) {
-      addToast("Gagal menghapus kategori.", "error");
+      await deleteCategoryApi(id, currentUser || undefined);
+      addToast("Kategori budget berhasil dihapus.", "success");
+      fetchAllData();
+      return true;
+    } catch (e: any) {
+      addToast(e.message || "Gagal menghapus kategori.", "error");
       return false;
     }
   };
@@ -501,49 +412,26 @@ export default function App() {
   // Reset database helper
   const handleResetDatabase = async () => {
     try {
-      const response = await fetch("/api/system/reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userEmail: currentUser?.Email, userName: currentUser?.Name })
-      });
-      if (response.ok) {
-        addToast("Database telah dibersihkan & dipulihkan ke kondisi bawaan!", "success");
-        fetchAllData();
-        setActiveTab("dashboard");
-        return true;
-      } else {
-        addToast("Gagal mereset database.", "error");
-        return false;
-      }
-    } catch (e) {
-      addToast("Gagal terhubung ke modul reset.", "error");
+      await resetSystemApi(currentUser || undefined);
+      addToast("Database telah dibersihkan & dipulihkan ke kondisi bawaan!", "success");
+      fetchAllData();
+      setActiveTab("dashboard");
+      return true;
+    } catch (e: any) {
+      addToast(e.message || "Gagal mereset database.", "error");
       return false;
     }
   };
 
   const handleImportDatabase = async (importedDB: any) => {
     try {
-      const response = await fetch("/api/system/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userEmail: currentUser?.Email,
-          userName: currentUser?.Name,
-          importedDB
-        })
-      });
-      if (response.ok) {
-        addToast("Database berhasil diimpor dari file backup!", "success");
-        fetchAllData();
-        setActiveTab("dashboard");
-        return true;
-      } else {
-        const data = await response.json();
-        addToast(data.error || "Gagal mengimpor database.", "error");
-        return false;
-      }
-    } catch (e) {
-      addToast("Gagal terhubung ke server untuk impor data.", "error");
+      await importSystemApi(importedDB, currentUser || undefined);
+      addToast("Database berhasil diimpor dari file backup!", "success");
+      fetchAllData();
+      setActiveTab("dashboard");
+      return true;
+    } catch (e: any) {
+      addToast(e.message || "Gagal mengimpor database.", "error");
       return false;
     }
   };
@@ -551,44 +439,42 @@ export default function App() {
   // Users Management API Helpers
   const handleAddUser = async (uData: Omit<User, "UserID">) => {
     try {
-      const response = await fetch("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...uData, adminEmail: currentUser?.Email, adminName: currentUser?.Name })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        addToast(`Staff ${data.Name} berhasil terdaftar!`, "success");
+      const res = await addUserApi(uData, currentUser || undefined);
+      if (res) {
+        addToast(`Staff ${res.Name} berhasil terdaftar!`, "success");
         fetchAllData();
         return true;
-      } else {
-        addToast(data.error || "Gagal mendaftarkan staff.", "error");
-        return false;
       }
-    } catch (e) {
-      addToast("Gagal mendaftarkan pengguna baru.", "error");
+      return false;
+    } catch (e: any) {
+      addToast(e.message || "Gagal mendaftarkan pengguna baru.", "error");
       return false;
     }
   };
 
   const handleEditUser = async (id: string, uData: Partial<User>) => {
     try {
-      const response = await fetch(`/api/users/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...uData, adminEmail: currentUser?.Email, adminName: currentUser?.Name })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        addToast(`Otoritas masuk ${data.Name} diperbarui!`, "success");
+      const res = await editUserApi(id, uData, currentUser || undefined);
+      if (res) {
+        addToast(`Otoritas masuk ${res.Name} diperbarui!`, "success");
         fetchAllData();
         return true;
-      } else {
-        addToast(data.error || "Gagal mengubah user.", "error");
-        return false;
       }
-    } catch (e) {
-      addToast("Gagal mengubah data pengguna.", "error");
+      return false;
+    } catch (e: any) {
+      addToast(e.message || "Gagal mengubah data pengguna.", "error");
+      return false;
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    try {
+      await deleteUserApi(id, currentUser || undefined);
+      addToast("Pengguna berhasil dihapus.", "success");
+      fetchAllData();
+      return true;
+    } catch (e: any) {
+      addToast(e.message || "Gagal menghapus data pengguna.", "error");
       return false;
     }
   };

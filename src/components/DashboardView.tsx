@@ -63,6 +63,16 @@ import {
   ReferenceLine,
   LabelList
 } from "recharts";
+import {
+  getEmailRecipientsApi,
+  addEmailRecipientApi,
+  deleteEmailRecipientApi,
+  getAutoEmailScheduleApi,
+  saveAutoEmailScheduleApi,
+  getEmailTemplateApi,
+  saveEmailTemplateApi,
+  sendEmailSummaryApi
+} from "../services/apiClient";
 import { User, Budget, PlanBudget, Actual, Category, UserRole } from "../types";
 import { AjinomotoLogo } from "./AjinomotoLogo";
 
@@ -488,8 +498,7 @@ export default function DashboardView({
 
   // Fetch recipients, auto schedule, and saved email template on mount
   useEffect(() => {
-    fetch("/api/email-recipients")
-      .then(res => res.json())
+    getEmailRecipientsApi()
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
           setSavedRecipients(data);
@@ -497,8 +506,7 @@ export default function DashboardView({
       })
       .catch(err => console.error("Error loading email recipients:", err));
 
-    fetch("/api/auto-email-schedule")
-      .then(res => res.json())
+    getAutoEmailScheduleApi()
       .then(data => {
         if (data && typeof data === "object") {
           setAutoSchedule(data);
@@ -506,8 +514,7 @@ export default function DashboardView({
       })
       .catch(err => console.error("Error loading auto email schedule:", err));
 
-    fetch("/api/email-template")
-      .then(res => res.json())
+    getEmailTemplateApi()
       .then(data => {
         if (data && typeof data === "object") {
           if (data.subject) setEmailSubject(data.subject);
@@ -521,22 +528,11 @@ export default function DashboardView({
   const handleSaveEmailTemplate = async () => {
     setIsSavingTemplate(true);
     try {
-      const res = await fetch("/api/email-template", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subject: emailSubject,
-          notes: emailNotes,
-          userEmail: currentUser.Email,
-          userName: currentUser.Name
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        addToast("Format & isi pesan badan email berhasil disimpan!", "success");
-      } else {
-        addToast(data.error || "Gagal menyimpan format email", "error");
-      }
+      await saveEmailTemplateApi({
+        subject: emailSubject,
+        notes: emailNotes
+      }, currentUser);
+      addToast("Format & isi pesan badan email berhasil disimpan!", "success");
     } catch (err: any) {
       addToast(`Error: ${err?.message || String(err)}`, "error");
     } finally {
@@ -1050,22 +1046,12 @@ export default function DashboardView({
       return;
     }
     try {
-      const res = await fetch("/api/email-recipients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newRecipName || newRecipEmail.split("@")[0],
-          email: newRecipEmail,
-          department: newRecipDept || "General",
-          userEmail: currentUser.Email,
-          userName: currentUser.Name
-        })
-      });
-      const data = await res.json();
-      if (data.error) {
-        addToast(data.error, "error");
-        return;
-      }
+      const data = await addEmailRecipientApi({
+        name: newRecipName || newRecipEmail.split("@")[0],
+        email: newRecipEmail,
+        department: newRecipDept || "General"
+      }, currentUser);
+
       setSavedRecipients(prev => [...prev, data]);
       if (emailRecipient) {
         if (!emailRecipient.includes(data.email)) {
@@ -1086,13 +1072,9 @@ export default function DashboardView({
 
   const handleDeleteRecipient = async (id: string, name: string) => {
     try {
-      const res = await fetch(`/api/email-recipients/${id}?userEmail=${encodeURIComponent(currentUser.Email)}&userName=${encodeURIComponent(currentUser.Name)}`, {
-        method: "DELETE"
-      });
-      if (res.ok) {
-        setSavedRecipients(prev => prev.filter(r => r.id !== id));
-        addToast(`Penerima '${name}' telah dihapus dari daftar.`, "info");
-      }
+      await deleteEmailRecipientApi(id, currentUser);
+      setSavedRecipients(prev => prev.filter(r => r.id !== id));
+      addToast(`Penerima '${name}' telah dihapus dari daftar.`, "info");
     } catch (err) {
       addToast("Gagal menghapus penerima.", "error");
     }
@@ -1101,23 +1083,10 @@ export default function DashboardView({
   const handleSaveAutoSchedule = async () => {
     setIsSavingSchedule(true);
     try {
-      const res = await fetch("/api/auto-email-schedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...autoSchedule,
-          userEmail: currentUser.Email,
-          userName: currentUser.Name
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        addToast("Jadwal pengiriman email otomatis berhasil disimpan & diperbarui!", "success");
-      } else {
-        addToast("Gagal menyimpan jadwal otomatis.", "error");
-      }
+      await saveAutoEmailScheduleApi(autoSchedule, currentUser);
+      addToast("Jadwal pengiriman email otomatis berhasil disimpan & diperbarui!", "success");
     } catch (err) {
-      addToast("Gagal menghubungi server untuk jadwal otomatis.", "error");
+      addToast("Gagal menyimpan jadwal otomatis.", "error");
     } finally {
       setIsSavingSchedule(false);
     }
@@ -1140,43 +1109,35 @@ export default function DashboardView({
         console.warn("Could not generate PDF attachment in client:", pdfErr);
       }
 
-      const response = await fetch("/api/send-email-summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recipientEmail: emailRecipient,
-          recipientName: emailRecipient.includes(",") ? "Direksi & Management" : emailRecipient.split("@")[0],
-          subject: emailSubject || `Executive Summary & Trend Anggaran Legal ${getCompanyDisplayName(activeCompany)}`,
-          notes: emailNotes,
-          senderEmail: "noreply-legalbudget@ajinomoto.co.id",
-          senderName: "Legal Department Budget System",
-          pdfBase64,
-          summaryData: {
-            totalBudget,
-            totalPlanAmount,
-            totalActual,
-            remainingBudget,
-            utilizationRate: Number(utilizationRate.toFixed(1)),
-            peakMonthName: peakMonth?.fullName,
-            peakMonthAmount: peakMonth?.Pengeluaran,
-            avgMonthlyBurn,
-            topCategoryName: topCategoryInfo?.name
-          }
-        })
-      });
-
-      const data = await response.json();
-      if (response.ok && data.success) {
-        addToast(data.message || `Executive Summary (beserta Lampiran PDF) berhasil dikirim ke: ${emailRecipient}!`, "success");
-
-        if (data.previewUrl) {
-          window.open(data.previewUrl, "_blank");
+      const res = await sendEmailSummaryApi({
+        recipients: emailRecipient.split(",").map(e => e.trim()).filter(Boolean),
+        recipientEmail: emailRecipient,
+        recipientName: emailRecipient.includes(",") ? "Direksi & Management" : emailRecipient.split("@")[0],
+        subject: emailSubject || `Executive Summary & Trend Anggaran Legal ${getCompanyDisplayName(activeCompany)}`,
+        notes: emailNotes,
+        senderEmail: "noreply-legalbudget@ajinomoto.co.id",
+        senderName: "Legal Department Budget System",
+        pdfBase64,
+        summaryData: {
+          totalBudget,
+          totalPlanAmount,
+          totalActual,
+          remainingBudget,
+          utilizationRate: Number(utilizationRate.toFixed(1)),
+          peakMonthName: peakMonth?.fullName,
+          peakMonthAmount: peakMonth?.Pengeluaran,
+          avgMonthlyBurn,
+          topCategoryName: topCategoryInfo?.name
         }
+      }, currentUser);
+
+      if (res && res.success) {
+        addToast(res.message || `Executive Summary (beserta Lampiran PDF) berhasil dikirim ke: ${emailRecipient}!`, "success");
       } else {
-        addToast(data.error || "Gagal mengirim email summary.", "error");
+        addToast("Gagal mengirim email summary.", "error");
       }
     } catch (err) {
-      addToast("Terjadi kesalahan koneksi saat mengirim email summary.", "error");
+      addToast("Terjadi kesalahan saat memproses pengiriman email.", "error");
     } finally {
       setIsSendingEmail(false);
     }

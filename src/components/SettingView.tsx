@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { User, Category, AuditLog, UserRole, Budget, Actual } from "../types";
 import { connectGoogleSheets, disconnectGoogleSheets } from "../lib/firebase";
+import { exportSystemApi, addAuditLogLocal } from "../services/apiClient";
 
 interface SettingViewProps {
   categories: Category[];
@@ -227,13 +228,12 @@ export default function SettingView({
   const handleExportDB = async () => {
     try {
       addToast("Menyiapkan unduhan database...", "info");
-      const response = await fetch("/api/system/export");
-      if (!response.ok) throw new Error();
-      const blob = await response.blob();
+      const exportData = await exportSystemApi();
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "legal_budget_db_backup.json";
+      a.download = `legal_budget_db_backup_${new Date().toISOString().split("T")[0]}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
