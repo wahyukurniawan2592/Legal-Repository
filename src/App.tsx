@@ -577,8 +577,8 @@ export default function App() {
             
             <div className="space-y-6 relative z-10">
               {/* Ajinomoto Corporate Logo in White */}
-              <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 inline-flex flex-col items-center">
-                <AjinomotoLogo variant="full" theme="white" height={44} />
+              <div className="bg-white/10 backdrop-blur-md p-5 rounded-2xl border border-white/20 inline-flex flex-col items-center">
+                <AjinomotoLogo variant="stacked" theme="white" height={60} />
               </div>
 
               <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-3.5 py-1.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase border border-white/15">
@@ -621,7 +621,7 @@ export default function App() {
                 <span>← Kembali ke Beranda</span>
               </button>
 
-              <AjinomotoLogo variant="compact" height={22} />
+              <AjinomotoLogo variant="stacked" height={44} />
             </div>
 
             {/* Form & Headline */}
@@ -723,11 +723,11 @@ export default function App() {
       {/* SIDEBAR NAVIGATION - DESKTOP */}
       <aside className="hidden lg:flex flex-col w-64 bg-brand-dark text-white shrink-0 no-print">
         {/* Header */}
-        <div className="p-5 border-b border-white/10 space-y-3 bg-black/20">
-          <div className="flex items-center justify-between">
-            <AjinomotoLogo variant="horizontal" theme="white" height={32} />
+        <div className="p-5 border-b border-white/10 space-y-3 bg-black/20 text-center">
+          <div className="flex items-center justify-center">
+            <AjinomotoLogo variant="stacked" theme="white" height={54} />
           </div>
-          <div className="flex items-center justify-between pt-1 border-t border-white/5">
+          <div className="flex items-center justify-between pt-2 border-t border-white/5">
             <span className="text-[10px] text-gray-400 font-mono tracking-wider">LEGAL DEPARTMENT</span>
             <span className="text-[9px] bg-brand-red text-white px-2 py-0.5 rounded font-bold uppercase tracking-wider">FY 2026</span>
           </div>
@@ -857,7 +857,7 @@ export default function App() {
           <div className="fixed inset-0 bg-brand-dark/50 backdrop-blur-xs" onClick={() => setIsSidebarOpen(false)}></div>
           <aside className="relative flex flex-col w-64 bg-brand-dark text-white h-full shadow-2xl z-10 animate-fade-in">
             <div className="p-5 border-b border-white/10 flex justify-between items-center bg-black/20">
-              <AjinomotoLogo variant="horizontal" theme="white" height={28} />
+              <AjinomotoLogo variant="stacked" theme="white" height={44} />
               <button onClick={() => setIsSidebarOpen(false)} className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/10">
                 <X className="w-5 h-5" />
               </button>

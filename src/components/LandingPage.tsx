@@ -106,10 +106,10 @@ export default function LandingPage({ onGetStarted, budgets = [], actuals = [] }
       </svg>
 
       {/* Glassmorphic Navigation Header */}
-      <header className="sticky top-0 z-50 h-20 bg-white/90 backdrop-blur-md border-b border-gray-200/80 flex items-center justify-between px-5 sm:px-8 md:px-12 transition-all shadow-xs">
+      <header className="sticky top-0 z-50 h-24 bg-white/90 backdrop-blur-md border-b border-gray-200/80 flex items-center justify-between px-5 sm:px-8 md:px-12 transition-all shadow-xs">
         <div className="flex items-center gap-4">
-          <AjinomotoLogo variant="horizontal" height={36} />
-          <div className="hidden sm:block h-6 w-px bg-gray-200"></div>
+          <AjinomotoLogo variant="stacked" height={52} />
+          <div className="hidden sm:block h-10 w-px bg-gray-200"></div>
           <span className="hidden sm:inline-block text-[11px] font-mono font-bold text-gray-500 uppercase tracking-wider">
             Legal Department Budget Portal
           </span>
@@ -506,7 +506,7 @@ export default function LandingPage({ onGetStarted, budgets = [], actuals = [] }
       {/* Footer */}
       <footer className="py-10 bg-gray-950 text-gray-400 px-5 sm:px-8 md:px-12 text-center text-xs border-t border-gray-800 relative z-10">
         <div className="max-w-7xl mx-auto flex flex-col items-center space-y-4">
-          <AjinomotoLogo variant="horizontal" theme="white" height={32} />
+          <AjinomotoLogo variant="stacked" theme="white" height={54} />
           <div className="space-y-1">
             <p className="font-semibold text-gray-200">PT AJINOMOTO INDONESIA &amp; PT AJINEX INTERNATIONAL • Legal &amp; Compliance Department</p>
             <p className="text-gray-500 text-[11px]">Sistem Pengelolaan Budget Department © 2026 • Mojokerto Factory</p>
