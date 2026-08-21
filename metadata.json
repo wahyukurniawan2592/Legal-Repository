@@ -1,0 +1,6 @@
+{
+  "name": "Legal Budget Monitor",
+  "description": "Sistem monitoring budget dan pengeluaran internal Legal Department PT Ajinomoto Indonesia dengan analisis AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
